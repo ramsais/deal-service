@@ -56,8 +56,8 @@ def _make_claims_header(groups: list[str]) -> str:
     return json.dumps(claims)
 
 
-USER_HEADERS = {"x-cognito-claims": _make_claims_header(["user"])}
-ADMIN_HEADERS = {"x-cognito-claims": _make_claims_header(["admin"])}
+USER_HEADERS = {"x-cognito-claims": _make_claims_header(["READ_USER"])}
+ADMIN_HEADERS = {"x-cognito-claims": _make_claims_header(["WRITE_USER"])}
 
 
 # ---------------------------------------------------------------------------
@@ -367,7 +367,7 @@ async def test_full_lifecycle(client: AsyncClient) -> None:
     assert update_r.json()["status"] == "Closed"
     assert update_r.json()["amount"] == 4500.0
 
-    # Delete (admin only)
+    # Delete (WRITE_USER only)
     del_r = await client.delete(f"/deals/{deal_id}", headers=ADMIN_HEADERS)
     assert del_r.status_code == 204
 

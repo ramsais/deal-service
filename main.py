@@ -36,6 +36,13 @@ async def health_check() -> dict:
     return {"status": "ok"}
 
 
+# Also expose health under /deals/health to support load balancers that
+# forward a base path of /deals without rewriting (e.g. ALB/ECS listener rules).
+@app.get("/deals/health", tags=["health"])
+async def health_check_deals() -> dict:
+    return {"status": "ok"}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=9000)

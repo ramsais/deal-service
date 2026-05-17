@@ -1,8 +1,8 @@
 # Deal Service - HTTP Requests
 # Base URL: http://localhost:9000
 # Auth: All endpoints require x-cognito-claims header.
-#   - user role  → GET /deals, GET /deals/{id}, POST /deals, PUT /deals/{id}
-#   - admin role → DELETE /deals/{id}
+#   - READ_USER role  → GET /deals, GET /deals/{id}, POST /deals, PUT /deals/{id}
+#   - WRITE_USER role → DELETE /deals/{id}
 #
 # To use in production behind API Gateway, replace x-cognito-claims with the
 # appropriate Authorization: Bearer <token> header — API GW will forward claims.
@@ -23,13 +23,13 @@ GET {{baseUrl}}/health
 ### ─────────────────────────────────────────────
 
 GET {{baseUrl}}/deals
-x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+x-cognito-claims: {"cognito:groups": ["READ_USER"], "sub": "user-001"}
 
 
 ### GET /deals — Filter by company_id (user)
 
 GET {{baseUrl}}/deals?company_id=1
-x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+x-cognito-claims: {"cognito:groups": ["READ_USER"], "sub": "user-001"}
 
 
 ### GET /deals — No auth → 401
@@ -42,13 +42,13 @@ GET {{baseUrl}}/deals
 ### ─────────────────────────────────────────────
 
 GET {{baseUrl}}/deals/{{dealId}}
-x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+x-cognito-claims: {"cognito:groups": ["READ_USER"], "sub": "user-001"}
 
 
 ### GET /deals/{deal_id} — Not found → 404
 
 GET {{baseUrl}}/deals/nonexistent-id
-x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+x-cognito-claims: {"cognito:groups": ["READ_USER"], "sub": "user-001"}
 
 
 ### ─────────────────────────────────────────────
@@ -56,7 +56,7 @@ x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
 ### ─────────────────────────────────────────────
 
 POST {{baseUrl}}/deals
-x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+x-cognito-claims: {"cognito:groups": ["READ_USER"], "sub": "user-001"}
 Content-Type: application/json
 
 {
@@ -70,7 +70,7 @@ Content-Type: application/json
 ### POST /deals — Missing required field → 422
 
 POST {{baseUrl}}/deals
-x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+x-cognito-claims: {"cognito:groups": ["READ_USER"], "sub": "user-001"}
 Content-Type: application/json
 
 {
@@ -83,7 +83,7 @@ Content-Type: application/json
 ### POST /deals — Wrong field type → 422
 
 POST {{baseUrl}}/deals
-x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+x-cognito-claims: {"cognito:groups": ["READ_USER"], "sub": "user-001"}
 Content-Type: application/json
 
 {
@@ -99,7 +99,7 @@ Content-Type: application/json
 ### ─────────────────────────────────────────────
 
 PUT {{baseUrl}}/deals/{{dealId}}
-x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+x-cognito-claims: {"cognito:groups": ["READ_USER"], "sub": "user-001"}
 Content-Type: application/json
 
 {
@@ -110,7 +110,7 @@ Content-Type: application/json
 ### PUT /deals/{deal_id} — Partial update (title + amount)
 
 PUT {{baseUrl}}/deals/deal-002
-x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+x-cognito-claims: {"cognito:groups": ["READ_USER"], "sub": "user-001"}
 Content-Type: application/json
 
 {
@@ -122,7 +122,7 @@ Content-Type: application/json
 ### PUT /deals/{deal_id} — Not found → 404
 
 PUT {{baseUrl}}/deals/ghost-deal
-x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+x-cognito-claims: {"cognito:groups": ["READ_USER"], "sub": "user-001"}
 Content-Type: application/json
 
 {
@@ -131,23 +131,23 @@ Content-Type: application/json
 
 
 ### ─────────────────────────────────────────────
-### DELETE /deals/{deal_id} — Delete a deal (admin only)
+### DELETE /deals/{deal_id} — Delete a deal (WRITE_USER only)
 ### ─────────────────────────────────────────────
 
 DELETE {{baseUrl}}/deals/{{dealId}}
-x-cognito-claims: {"cognito:groups": ["admin"], "sub": "admin-001"}
+x-cognito-claims: {"cognito:groups": ["WRITE_USER"], "sub": "admin-001"}
 
 
 ### DELETE /deals/{deal_id} — User role → 403
 
 DELETE {{baseUrl}}/deals/{{dealId}}
-x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+x-cognito-claims: {"cognito:groups": ["READ_USER"], "sub": "user-001"}
 
 
 ### DELETE /deals/{deal_id} — Not found → 404
 
 DELETE {{baseUrl}}/deals/nonexistent-id
-x-cognito-claims: {"cognito:groups": ["admin"], "sub": "admin-001"}
+x-cognito-claims: {"cognito:groups": ["WRITE_USER"], "sub": "admin-001"}
 
 
 ### ─────────────────────────────────────────────

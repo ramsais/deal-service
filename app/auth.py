@@ -63,19 +63,19 @@ def _get_role(claims: dict) -> str:
     """
     Extract the user role from Cognito claims.
     Cognito groups are available under 'cognito:groups' as a list.
-    We recognise 'admin' and 'user'; admin takes precedence.
+    We recognise 'WRITE_USER' and 'READ_USER'; WRITE_USER takes precedence.
     """
     groups = claims.get("cognito:groups") or []
     if isinstance(groups, str):
         # Some serialisations send it as a comma-separated string
         groups = [g.strip() for g in groups.split(",")]
 
-    if "admin" in groups:
-        return "admin"
-    if "user" in groups:
-        return "user"
+    if "WRITE_USER" in groups:
+        return "WRITE_USER"
+    if "READ_USER" in groups:
+        return "READ_USER"
 
-    raise AuthorizationException(message="User does not belong to a recognised role (admin or user)")
+    raise AuthorizationException(message="User does not belong to a recognised role (WRITE_USER or READ_USER)")
 
 
 # ---------------------------------------------------------------------------
@@ -83,16 +83,16 @@ def _get_role(claims: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def require_admin(request: Request) -> str:
-    """Dependency — allows only users in the 'admin' group."""
+    """Dependency — allows only users in the 'WRITE_USER' group."""
     claims = _extract_claims(request)
     role = _get_role(claims)
-    if role != "admin":
-        raise AuthorizationException(message="This action requires the 'admin' role")
+    if role != "WRITE_USER":
+        raise AuthorizationException(message="This action requires the 'WRITE_USER' role")
     return role
 
 
 def require_user(request: Request) -> str:
-    """Dependency — allows users in the 'user' OR 'admin' group."""
+    """Dependency — allows users in the 'READ_USER' OR 'WRITE_USER' group."""
     claims = _extract_claims(request)
     _get_role(claims)  # validates that the user belongs to at least one known role
     return "ok"
