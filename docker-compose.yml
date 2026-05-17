@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  deal-service:
+    build: .
+    ports:
+      - "9000:9000"
+    environment:
+      - STORAGE_FILE_PATH=app/storage/deals.json
+      - LOG_LEVEL=INFO
+    volumes:
+      - deal-storage:/app/app/storage
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  deal-storage:

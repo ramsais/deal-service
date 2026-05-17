@@ -1,0 +1,160 @@
+# Deal Service - HTTP Requests
+# Base URL: http://localhost:9000
+# Auth: All endpoints require x-cognito-claims header.
+#   - user role  → GET /deals, GET /deals/{id}, POST /deals, PUT /deals/{id}
+#   - admin role → DELETE /deals/{id}
+#
+# To use in production behind API Gateway, replace x-cognito-claims with the
+# appropriate Authorization: Bearer <token> header — API GW will forward claims.
+
+@baseUrl = http://localhost:9000
+@dealId = deal-001
+
+
+### ─────────────────────────────────────────────
+### Health Check (no auth required)
+### ─────────────────────────────────────────────
+
+GET {{baseUrl}}/health
+
+
+### ─────────────────────────────────────────────
+### GET /deals — List all deals (user)
+### ─────────────────────────────────────────────
+
+GET {{baseUrl}}/deals
+x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+
+
+### GET /deals — Filter by company_id (user)
+
+GET {{baseUrl}}/deals?company_id=1
+x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+
+
+### GET /deals — No auth → 401
+
+GET {{baseUrl}}/deals
+
+
+### ─────────────────────────────────────────────
+### GET /deals/{deal_id} — Get single deal (user)
+### ─────────────────────────────────────────────
+
+GET {{baseUrl}}/deals/{{dealId}}
+x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+
+
+### GET /deals/{deal_id} — Not found → 404
+
+GET {{baseUrl}}/deals/nonexistent-id
+x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+
+
+### ─────────────────────────────────────────────
+### POST /deals — Create a new deal (user)
+### ─────────────────────────────────────────────
+
+POST {{baseUrl}}/deals
+x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+Content-Type: application/json
+
+{
+  "title": "New Partnership Deal",
+  "amount": 75000.00,
+  "status": "Open",
+  "company_id": "3"
+}
+
+
+### POST /deals — Missing required field → 422
+
+POST {{baseUrl}}/deals
+x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+Content-Type: application/json
+
+{
+  "title": "Incomplete Deal",
+  "amount": 5000.00,
+  "status": "Open"
+}
+
+
+### POST /deals — Wrong field type → 422
+
+POST {{baseUrl}}/deals
+x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+Content-Type: application/json
+
+{
+  "title": "Bad Amount Deal",
+  "amount": "not-a-number",
+  "status": "Open",
+  "company_id": "1"
+}
+
+
+### ─────────────────────────────────────────────
+### PUT /deals/{deal_id} — Update a deal (user)
+### ─────────────────────────────────────────────
+
+PUT {{baseUrl}}/deals/{{dealId}}
+x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+Content-Type: application/json
+
+{
+  "status": "Won"
+}
+
+
+### PUT /deals/{deal_id} — Partial update (title + amount)
+
+PUT {{baseUrl}}/deals/deal-002
+x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+Content-Type: application/json
+
+{
+  "title": "Updated Cloud Migration Project",
+  "amount": 135000.00
+}
+
+
+### PUT /deals/{deal_id} — Not found → 404
+
+PUT {{baseUrl}}/deals/ghost-deal
+x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+Content-Type: application/json
+
+{
+  "status": "Lost"
+}
+
+
+### ─────────────────────────────────────────────
+### DELETE /deals/{deal_id} — Delete a deal (admin only)
+### ─────────────────────────────────────────────
+
+DELETE {{baseUrl}}/deals/{{dealId}}
+x-cognito-claims: {"cognito:groups": ["admin"], "sub": "admin-001"}
+
+
+### DELETE /deals/{deal_id} — User role → 403
+
+DELETE {{baseUrl}}/deals/{{dealId}}
+x-cognito-claims: {"cognito:groups": ["user"], "sub": "user-001"}
+
+
+### DELETE /deals/{deal_id} — Not found → 404
+
+DELETE {{baseUrl}}/deals/nonexistent-id
+x-cognito-claims: {"cognito:groups": ["admin"], "sub": "admin-001"}
+
+
+### ─────────────────────────────────────────────
+### Auth edge cases
+### ─────────────────────────────────────────────
+
+### Unknown role → 403
+
+GET {{baseUrl}}/deals
+x-cognito-claims: {"cognito:groups": ["manager"], "sub": "user-xyz"}
