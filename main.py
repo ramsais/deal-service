@@ -1,14 +1,22 @@
+from app.services.config import settings
+from app.logging_config import configure_logging, RequestLoggingMiddleware
+
+# Must be the very first call — before FastAPI app is created
+configure_logging(level=settings.LOG_LEVEL)
+
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.exceptions import AppException
-from app.logging_config import RequestLoggingMiddleware, configure_logging, logger
 from app.routers.deal_router import router as deal_router
-from app.services.config import settings
 
-configure_logging(level=settings.LOG_LEVEL)
+logger = logging.getLogger("deal_service")
 
 app = FastAPI(title="Deal Service", version="1.0.0")
+
+# Must be the first middleware added
 app.add_middleware(RequestLoggingMiddleware)
 
 

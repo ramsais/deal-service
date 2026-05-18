@@ -4,7 +4,8 @@
     "title": "Enterprise Software License",
     "amount": 50000.0,
     "status": "Open",
-    "company_id": "1",
+    "company_id": "3",
+    "is_active": true,
     "created_at": "2024-01-15T09:00:00+00:00",
     "updated_at": "2024-01-15T09:00:00+00:00"
   },
@@ -13,7 +14,8 @@
     "title": "Cloud Migration Project",
     "amount": 120000.0,
     "status": "Won",
-    "company_id": "2",
+    "company_id": "1",
+    "is_active": true,
     "created_at": "2024-02-20T11:30:00+00:00",
     "updated_at": "2024-03-01T14:00:00+00:00"
   },
@@ -22,8 +24,99 @@
     "title": "Annual Support Contract",
     "amount": 18000.0,
     "status": "Closed",
-    "company_id": "1",
+    "company_id": "2",
+    "is_active": true,
     "created_at": "2024-03-05T08:00:00+00:00",
     "updated_at": "2024-03-10T10:00:00+00:00"
+  },
+  {
+    "id": "deal-004",
+    "title": "Digital Transformation Initiative",
+    "amount": 250000.0,
+    "status": "Open",
+    "company_id": "4",
+    "is_active": true,
+    "created_at": "2024-04-01T10:00:00+00:00",
+    "updated_at": "2024-04-01T10:00:00+00:00"
+  },
+  {
+    "id": "deal-005",
+    "title": "Cybersecurity Audit & Remediation",
+    "amount": 75000.0,
+    "status": "Open",
+    "company_id": "5",
+    "is_active": true,
+    "created_at": "2024-04-10T08:30:00+00:00",
+    "updated_at": "2024-04-10T08:30:00+00:00"
+  },
+  {
+    "id": "deal-006",
+    "title": "ERP System Implementation",
+    "amount": 340000.0,
+    "status": "Won",
+    "company_id": "2",
+    "is_active": true,
+    "created_at": "2024-04-18T13:00:00+00:00",
+    "updated_at": "2024-05-02T09:00:00+00:00"
+  },
+  {
+    "id": "deal-007",
+    "title": "Data Analytics Platform",
+    "amount": 95000.0,
+    "status": "Open",
+    "company_id": "1",
+    "is_active": true,
+    "created_at": "2024-05-05T11:00:00+00:00",
+    "updated_at": "2024-05-05T11:00:00+00:00"
+  },
+  {
+    "id": "deal-008",
+    "title": "Mobile App Development",
+    "amount": 60000.0,
+    "status": "Closed",
+    "company_id": "3",
+    "is_active": true,
+    "created_at": "2024-05-12T09:45:00+00:00",
+    "updated_at": "2024-05-20T16:00:00+00:00"
+  },
+  {
+    "id": "deal-009",
+    "title": "DevOps Consulting & CI/CD Setup",
+    "amount": 42000.0,
+    "status": "Won",
+    "company_id": "5",
+    "is_active": true,
+    "created_at": "2024-05-22T14:00:00+00:00",
+    "updated_at": "2024-06-01T10:00:00+00:00"
+  },
+  {
+    "id": "deal-010",
+    "title": "AI-Powered CRM Integration",
+    "amount": 185000.0,
+    "status": "Open",
+    "company_id": "4",
+    "is_active": true,
+    "created_at": "2024-06-03T08:00:00+00:00",
+    "updated_at": "2024-06-03T08:00:00+00:00"
+  },
+  {
+    "id": "deal-011",
+    "title": "Managed Cloud Hosting — 3yr",
+    "amount": 216000.0,
+    "status": "Won",
+    "company_id": "1",
+    "is_active": true,
+    "created_at": "2024-06-10T10:30:00+00:00",
+    "updated_at": "2024-06-15T12:00:00+00:00"
+  },
+  {
+    "id": "deal-012",
+    "title": "Network Infrastructure Upgrade",
+    "amount": 130000.0,
+    "status": "Open",
+    "company_id": "3",
+    "is_active": true,
+    "created_at": "2024-06-20T09:00:00+00:00",
+    "updated_at": "2024-06-20T09:00:00+00:00"
   }
 ]
