@@ -22,6 +22,8 @@ def _headers() -> dict:
     headers = {"Accept": "application/json"}
     if cid:
         headers["x-request-id"] = cid
+    if settings.INTERNAL_API_KEY:
+        headers["x-internal-api-key"] = settings.INTERNAL_API_KEY
     return headers
 
 

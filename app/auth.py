@@ -1,7 +1,10 @@
 import json
 import base64
+import logging
 from fastapi import Depends, Request
 from app.exceptions import AppException
+
+logger = logging.getLogger("deal_service.auth")
 
 
 class AuthorizationException(AppException):
@@ -23,6 +26,18 @@ def _extract_claims(request: Request) -> dict:
       2. x-cognito-claims  — custom header set by API GW mapping template (JSON string)
     Falls back to decoding the Authorization Bearer token payload directly (for local dev).
     """
+    logger.debug(
+        "auth headers received",
+        extra={
+            "has_x_amzn_oidc_data": bool(request.headers.get("x-amzn-oidc-data")),
+            "has_x_cognito_claims": bool(request.headers.get("x-cognito-claims")),
+            "has_authorization": bool(request.headers.get("authorization")),
+            "has_x_internal_api_key": bool(request.headers.get("x-internal-api-key")),
+            "path": request.url.path,
+            "method": request.method,
+        },
+    )
+
     # Pattern 1: API GW / ALB forwards encoded JWT payload
     oidc_data = request.headers.get("x-amzn-oidc-data")
     if oidc_data:
@@ -31,16 +46,40 @@ def _extract_claims(request: Request) -> dict:
             payload_b64 = oidc_data.split(".")[1]
             # Add padding if needed
             payload_b64 += "=" * (-len(payload_b64) % 4)
-            return json.loads(base64.urlsafe_b64decode(payload_b64))
+            claims = json.loads(base64.urlsafe_b64decode(payload_b64))
+            logger.info(
+                "claims extracted from x-amzn-oidc-data",
+                extra={
+                    "source": "x-amzn-oidc-data",
+                    "sub": claims.get("sub"),
+                    "cognito_groups": claims.get("cognito:groups"),
+                    "email": claims.get("email"),
+                    "username": claims.get("cognito:username"),
+                },
+            )
+            return claims
         except Exception:
+            logger.warning("failed to decode x-amzn-oidc-data token claims", extra={"path": request.url.path})
             raise AuthenticationException(message="Failed to decode OIDC token claims")
 
     # Pattern 2: API GW mapping template injects claims as JSON header
     cognito_claims = request.headers.get("x-cognito-claims")
     if cognito_claims:
         try:
-            return json.loads(cognito_claims)
+            claims = json.loads(cognito_claims)
+            logger.info(
+                "claims extracted from x-cognito-claims",
+                extra={
+                    "source": "x-cognito-claims",
+                    "sub": claims.get("sub"),
+                    "cognito_groups": claims.get("cognito:groups"),
+                    "email": claims.get("email"),
+                    "username": claims.get("cognito:username"),
+                },
+            )
+            return claims
         except Exception:
+            logger.warning("failed to parse x-cognito-claims header", extra={"path": request.url.path})
             raise AuthenticationException(message="Failed to parse Cognito claims header")
 
     # Fallback: decode Bearer token payload (no signature verification — API GW already did it)
@@ -52,10 +91,26 @@ def _extract_claims(request: Request) -> dict:
             if len(parts) == 3:
                 payload_b64 = parts[1]
                 payload_b64 += "=" * (-len(payload_b64) % 4)
-                return json.loads(base64.urlsafe_b64decode(payload_b64))
+                claims = json.loads(base64.urlsafe_b64decode(payload_b64))
+                logger.info(
+                    "claims extracted from Bearer token",
+                    extra={
+                        "source": "authorization_bearer",
+                        "sub": claims.get("sub"),
+                        "cognito_groups": claims.get("cognito:groups"),
+                        "email": claims.get("email"),
+                        "username": claims.get("cognito:username"),
+                    },
+                )
+                return claims
         except Exception:
+            logger.warning("failed to decode Bearer token claims", extra={"path": request.url.path})
             raise AuthenticationException(message="Failed to decode Bearer token claims")
 
+    logger.warning(
+        "no authentication credentials found",
+        extra={"path": request.url.path, "method": request.method},
+    )
     raise AuthenticationException(message="No authentication credentials found")
 
 
@@ -88,11 +143,31 @@ def require_admin(request: Request) -> str:
     role = _get_role(claims)
     if role != "WRITE_USER":
         raise AuthorizationException(message="This action requires the 'WRITE_USER' role")
+    logger.info(
+        "request authorised",
+        extra={
+            "required_role": "WRITE_USER",
+            "resolved_role": role,
+            "sub": claims.get("sub"),
+            "path": request.url.path,
+            "method": request.method,
+        },
+    )
     return role
 
 
 def require_user(request: Request) -> str:
     """Dependency — allows users in the 'READ_USER' OR 'WRITE_USER' group."""
     claims = _extract_claims(request)
-    _get_role(claims)  # validates that the user belongs to at least one known role
+    role = _get_role(claims)
+    logger.info(
+        "request authorised",
+        extra={
+            "required_role": "READ_USER|WRITE_USER",
+            "resolved_role": role,
+            "sub": claims.get("sub"),
+            "path": request.url.path,
+            "method": request.method,
+        },
+    )
     return "ok"

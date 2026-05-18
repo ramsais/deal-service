@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     COMPANY_SERVICE_URL: str = "http://company.dev.svc.local:8000"
     COMPANY_SERVICE_TIMEOUT: float = 5.0
+    INTERNAL_API_KEY: str = "demo-internal-secret-key-2024"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
