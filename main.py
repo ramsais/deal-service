@@ -2,10 +2,10 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.exceptions import AppException
-from app.logging_config import RequestLoggingMiddleware, configure_logging
+from app.logging_config import RequestLoggingMiddleware, configure_logging, logger
 from app.routers.deal_router import router as deal_router
-
 from app.services.config import settings
+
 configure_logging(level=settings.LOG_LEVEL)
 
 app = FastAPI(title="Deal Service", version="1.0.0")
@@ -22,6 +22,7 @@ async def app_exception_handler(request: Request, exc: AppException) -> JSONResp
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.error("unhandled exception", exc_info=exc)
     return JSONResponse(
         status_code=500,
         content={"message": "An unexpected internal server error occurred."},
@@ -33,14 +34,16 @@ app.include_router(deal_router)
 
 @app.get("/health", tags=["health"])
 async def health_check() -> dict:
-    return {"status": "ok"}
-
-
-# Also expose health under /deals/health to support load balancers that
-# forward a base path of /deals without rewriting (e.g. ALB/ECS listener rules).
-@app.get("/deals/health", tags=["health"])
-async def health_check_deals() -> dict:
-    return {"status": "ok"}
+    """
+    Health endpoint for ECS cluster service / ALB target group health checks.
+    Returns service name, version, and status so the load balancer can verify
+    the container is ready to serve traffic.
+    """
+    return {
+        "status": "ok",
+        "service": "deal-service",
+        "version": "1.0.0",
+    }
 
 
 if __name__ == "__main__":

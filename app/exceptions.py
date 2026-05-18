@@ -17,3 +17,8 @@ class ResourceNotFoundException(AppException):
 class StorageException(AppException):
     def __init__(self, message: str = "Storage error occurred", details: dict | None = None):
         super().__init__(status_code=500, error="STORAGE_ERROR", message=message, details=details)
+
+
+class CompanyServiceException(AppException):
+    def __init__(self, message: str = "Company service error occurred", details: dict | None = None):
+        super().__init__(status_code=502, error="COMPANY_SERVICE_ERROR", message=message, details=details)

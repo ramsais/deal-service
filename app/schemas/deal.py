@@ -1,5 +1,21 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from typing import Optional
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class Company(BaseModel):
+    """Pydantic model representing a company fetched from the company-service."""
+
+    model_config = ConfigDict(strict=False)
+
+    id: str
+    name: str
+    industry: Optional[str] = None
+    website: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class Deal(BaseModel):
@@ -10,8 +26,10 @@ class Deal(BaseModel):
     amount: float
     status: str  # "Open", "Closed", "Won", "Lost"
     company_id: str
+    is_active: bool = True
     created_at: datetime
     updated_at: datetime
+    company: Optional[Company] = None
 
 
 class DealCreate(BaseModel):
@@ -26,7 +44,7 @@ class DealCreate(BaseModel):
 class DealUpdate(BaseModel):
     model_config = ConfigDict(strict=True)
 
-    title: str | None = None
-    amount: float | None = None
-    status: str | None = None
-    company_id: str | None = None
+    title: Optional[str] = None
+    amount: Optional[float] = None
+    status: Optional[str] = None
+    company_id: Optional[str] = None

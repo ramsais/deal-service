@@ -6,6 +6,12 @@ from app.auth import require_admin, require_user
 router = APIRouter(prefix="/deals", tags=["deals"])
 
 
+@router.get("/health", tags=["health"])
+async def health_check() -> dict:
+    """Health endpoint for ECS/ALB — no auth required."""
+    return {"status": "ok", "service": "deal-service", "version": "1.0.0"}
+
+
 @router.get("", response_model=list[Deal], dependencies=[Depends(require_user)])
 async def list_deals(company_id: str | None = None) -> list[Deal]:
     return await deal_service.get_all_deals(company_id=company_id)

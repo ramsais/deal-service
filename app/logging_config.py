@@ -3,8 +3,13 @@ import logging
 import sys
 import time
 import uuid
+from contextvars import ContextVar
+
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
+
+# Context variable to carry correlation_id across async tasks
+correlation_id_var: ContextVar[str] = ContextVar("correlation_id", default="")
 
 
 class JsonFormatter(logging.Formatter):
@@ -16,6 +21,7 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
+            "correlation_id": correlation_id_var.get(""),
         }
         if record.exc_info:
             log_obj["exception"] = self.formatException(record.exc_info)
@@ -50,13 +56,15 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Log every request/response with a correlation ID (x-request-id)."""
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+        correlation_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+        # Set correlation_id in context var so all downstream logs include it
+        token = correlation_id_var.set(correlation_id)
         start = time.perf_counter()
 
         logger.info(
             "request started",
             extra={
-                "request_id": request_id,
+                "correlation_id": correlation_id,
                 "method": request.method,
                 "path": request.url.path,
             },
@@ -68,7 +76,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         logger.info(
             "request completed",
             extra={
-                "request_id": request_id,
+                "correlation_id": correlation_id,
                 "method": request.method,
                 "path": request.url.path,
                 "status_code": response.status_code,
@@ -76,5 +84,6 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             },
         )
 
-        response.headers["x-request-id"] = request_id
+        response.headers["x-request-id"] = correlation_id
+        correlation_id_var.reset(token)
         return response

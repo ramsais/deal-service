@@ -1,16 +1,21 @@
 """
 End-to-end pytest suite for deal-service.
 Each test gets an isolated temporary storage file so tests never interfere.
+Company-service HTTP calls are mocked via pytest monkeypatch so tests run
+without a real company-service dependency.
 """
 import base64
 import json
 import os
 import tempfile
 from collections.abc import AsyncGenerator
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+
+from app.schemas.deal import Company
 
 # ---------------------------------------------------------------------------
 # Seed data written into every fresh temp storage file
@@ -22,6 +27,7 @@ SEED_DEALS = [
         "amount": 50000.0,
         "status": "Open",
         "company_id": "1",
+        "is_active": True,
         "created_at": "2024-01-15T09:00:00+00:00",
         "updated_at": "2024-01-15T09:00:00+00:00",
     },
@@ -31,6 +37,7 @@ SEED_DEALS = [
         "amount": 120000.0,
         "status": "Won",
         "company_id": "2",
+        "is_active": True,
         "created_at": "2024-02-20T11:30:00+00:00",
         "updated_at": "2024-03-01T14:00:00+00:00",
     },
@@ -40,10 +47,33 @@ SEED_DEALS = [
         "amount": 18000.0,
         "status": "Closed",
         "company_id": "1",
+        "is_active": True,
         "created_at": "2024-03-05T08:00:00+00:00",
         "updated_at": "2024-03-10T10:00:00+00:00",
     },
 ]
+
+# ---------------------------------------------------------------------------
+# Fake company data returned by the mocked company-service client
+# ---------------------------------------------------------------------------
+FAKE_COMPANIES: dict[str, Company] = {
+    "1": Company(id="1", name="Acme Corp", industry="Software"),
+    "2": Company(id="2", name="Globex Inc", industry="Cloud"),
+    "3": Company(id="3", name="Initech", industry="Finance"),
+    "10": Company(id="10", name="Umbrella Ltd", industry="Healthcare"),
+}
+
+
+def _fake_get_company(company_id: str):
+    return FAKE_COMPANIES.get(company_id)
+
+
+async def _async_fake_get_company(company_id: str):
+    return _fake_get_company(company_id)
+
+
+async def _async_fake_get_companies(company_ids: list[str]):
+    return {cid: FAKE_COMPANIES[cid] for cid in company_ids if cid in FAKE_COMPANIES}
 
 
 # ---------------------------------------------------------------------------
@@ -68,22 +98,29 @@ ADMIN_HEADERS = {"x-cognito-claims": _make_claims_header(["WRITE_USER"])}
 async def client() -> AsyncGenerator[AsyncClient, None]:
     """
     Spin up a fresh temp storage file, point the app's settings at it,
-    then yield an AsyncClient backed by the ASGI app.
+    mock company-service calls, then yield an AsyncClient backed by the ASGI app.
     """
     fd, tmp_path = tempfile.mkstemp(suffix=".json")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(SEED_DEALS, f)
 
-        from app.services import config, storage_service  # noqa: PLC0415
+        from app.services import config  # noqa: PLC0415
         original_path = config.settings.STORAGE_FILE_PATH
         config.settings.STORAGE_FILE_PATH = tmp_path
 
-        from main import app  # noqa: PLC0415
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
-            yield ac
+        with patch(
+            "app.services.company_service.get_company",
+            side_effect=_async_fake_get_company,
+        ), patch(
+            "app.services.company_service.get_companies",
+            side_effect=_async_fake_get_companies,
+        ):
+            from main import app  # noqa: PLC0415
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as ac:
+                yield ac
 
         config.settings.STORAGE_FILE_PATH = original_path
     finally:
@@ -101,7 +138,16 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 async def test_health(client: AsyncClient) -> None:
     r = await client.get("/health")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok"}
+    body = r.json()
+    assert body["status"] == "ok"
+    assert body["service"] == "deal-service"
+
+
+@pytest.mark.asyncio
+async def test_health_deals_path(client: AsyncClient) -> None:
+    r = await client.get("/deals/health")
+    assert r.status_code == 200
+    assert r.json()["status"] == "ok"
 
 
 # ---------------------------------------------------------------------------
@@ -151,8 +197,19 @@ async def test_list_deals_returns_all(client: AsyncClient) -> None:
 async def test_list_deals_schema(client: AsyncClient) -> None:
     r = await client.get("/deals", headers=USER_HEADERS)
     deal = r.json()[0]
-    for field in ("id", "title", "amount", "status", "company_id", "created_at", "updated_at"):
+    for field in ("id", "title", "amount", "status", "company_id", "is_active", "created_at", "updated_at"):
         assert field in deal, f"Missing field: {field}"
+
+
+@pytest.mark.asyncio
+async def test_list_deals_company_enriched(client: AsyncClient) -> None:
+    r = await client.get("/deals", headers=USER_HEADERS)
+    assert r.status_code == 200
+    for deal in r.json():
+        assert "company" in deal
+        if deal["company_id"] in FAKE_COMPANIES:
+            assert deal["company"] is not None
+            assert deal["company"]["id"] == deal["company_id"]
 
 
 # ---------------------------------------------------------------------------
@@ -201,6 +258,16 @@ async def test_get_deal_by_id(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_deal_by_id_company_enriched(client: AsyncClient) -> None:
+    r = await client.get("/deals/deal-001", headers=USER_HEADERS)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["company"] is not None
+    assert data["company"]["id"] == "1"
+    assert data["company"]["name"] == "Acme Corp"
+
+
+@pytest.mark.asyncio
 async def test_get_deal_not_found(client: AsyncClient) -> None:
     r = await client.get("/deals/nonexistent-id", headers=USER_HEADERS)
     assert r.status_code == 404
@@ -228,9 +295,20 @@ async def test_create_deal(client: AsyncClient) -> None:
     assert data["amount"] == payload["amount"]
     assert data["status"] == payload["status"]
     assert data["company_id"] == payload["company_id"]
+    assert data["is_active"] is True
     assert "id" in data
     assert "created_at" in data
     assert "updated_at" in data
+
+
+@pytest.mark.asyncio
+async def test_create_deal_company_enriched(client: AsyncClient) -> None:
+    payload = {"title": "Enriched Deal", "amount": 5000.0, "status": "Open", "company_id": "3"}
+    r = await client.post("/deals", json=payload, headers=USER_HEADERS)
+    assert r.status_code == 201
+    data = r.json()
+    assert data["company"] is not None
+    assert data["company"]["name"] == "Initech"
 
 
 @pytest.mark.asyncio
@@ -305,7 +383,7 @@ async def test_update_deal_not_found(client: AsyncClient) -> None:
 
 
 # ---------------------------------------------------------------------------
-# DELETE /deals/{deal_id}
+# DELETE /deals/{deal_id} — soft-delete
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -315,7 +393,7 @@ async def test_delete_deal(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_delete_deal_removes_from_list(client: AsyncClient) -> None:
+async def test_delete_deal_soft_removes_from_list(client: AsyncClient) -> None:
     await client.delete("/deals/deal-001", headers=ADMIN_HEADERS)
     r = await client.get("/deals", headers=USER_HEADERS)
     ids = [d["id"] for d in r.json()]
@@ -337,6 +415,18 @@ async def test_delete_deal_not_found(client: AsyncClient) -> None:
     assert r.json()["error"] == "RESOURCE_NOT_FOUND"
 
 
+@pytest.mark.asyncio
+async def test_delete_deal_is_active_false_in_storage(client: AsyncClient) -> None:
+    """Verify the record is kept in storage but marked is_active=False (soft-delete)."""
+    from app.services import config, storage_service  # noqa: PLC0415
+
+    await client.delete("/deals/deal-001", headers=ADMIN_HEADERS)
+    raw = await storage_service.read_deals()
+    deal = next((d for d in raw if d["id"] == "deal-001"), None)
+    assert deal is not None, "Record should still exist in storage after soft-delete"
+    assert deal["is_active"] is False
+
+
 # ---------------------------------------------------------------------------
 # Full lifecycle: create → read → update → delete
 # ---------------------------------------------------------------------------
@@ -351,6 +441,7 @@ async def test_full_lifecycle(client: AsyncClient) -> None:
     )
     assert create_r.status_code == 201
     deal_id = create_r.json()["id"]
+    assert create_r.json()["is_active"] is True
 
     # Read (user)
     get_r = await client.get(f"/deals/{deal_id}", headers=USER_HEADERS)
@@ -367,10 +458,10 @@ async def test_full_lifecycle(client: AsyncClient) -> None:
     assert update_r.json()["status"] == "Closed"
     assert update_r.json()["amount"] == 4500.0
 
-    # Delete (WRITE_USER only)
+    # Delete (WRITE_USER only — soft-delete)
     del_r = await client.delete(f"/deals/{deal_id}", headers=ADMIN_HEADERS)
     assert del_r.status_code == 204
 
-    # Confirm gone (user)
+    # Confirm gone from active list (user)
     gone_r = await client.get(f"/deals/{deal_id}", headers=USER_HEADERS)
     assert gone_r.status_code == 404
