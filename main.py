@@ -1,7 +1,16 @@
+# ---------------------------------------------------------------------------
+# 1. OTel MUST be configured before FastAPI is imported / instantiated
+# ---------------------------------------------------------------------------
+from app.telemetry import configure_telemetry, instrument_app
+
+configure_telemetry(service_name="deal-service", service_version="1.0.2")
+
+# ---------------------------------------------------------------------------
+# 2. Logging setup — after OTel so JsonFormatter can read OTel span context
+# ---------------------------------------------------------------------------
 from app.services.config import settings
 from app.logging_config import configure_logging, RequestLoggingMiddleware
 
-# Must be the very first call — before FastAPI app is created
 configure_logging(level=settings.LOG_LEVEL)
 
 import logging
@@ -18,6 +27,11 @@ app = FastAPI(title="Deal Service", version="1.0.0")
 
 # Must be the first middleware added
 app.add_middleware(RequestLoggingMiddleware)
+
+# ---------------------------------------------------------------------------
+# 3. Wire OTel FastAPI instrumentation AFTER app + middleware are registered
+# ---------------------------------------------------------------------------
+instrument_app(app, excluded_urls="health")
 
 
 @app.exception_handler(AppException)

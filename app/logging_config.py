@@ -11,11 +11,39 @@ from starlette.middleware.base import BaseHTTPMiddleware
 # Carries correlation_id across async tasks within a single request
 correlation_id_var: ContextVar[str] = ContextVar("correlation_id", default="-")
 
+# Header names — API Gateway injects X-Amzn-Trace-Id; clients may send X-Correlation-ID
+CORRELATION_ID_HEADER = "x-request-id"
+_AMZN_TRACE_HEADER = "x-amzn-trace-id"
+_CORRELATION_HEADER = "x-correlation-id"
+
+
+def _get_otel_trace_context() -> dict:
+    """
+    Extract the active OTel trace_id and span_id from the current span context.
+    Returns empty strings when no active span exists (e.g. during startup).
+    These values are injected into every JSON log line so CloudWatch Logs
+    Insights can correlate log entries with X-Ray / Application Signals traces.
+    """
+    try:
+        from opentelemetry import trace as otel_trace
+        span = otel_trace.get_current_span()
+        ctx = span.get_span_context()
+        if ctx and ctx.is_valid:
+            return {
+                "trace_id": format(ctx.trace_id, "032x"),
+                "span_id": format(ctx.span_id, "016x"),
+            }
+    except Exception:
+        pass
+    return {"trace_id": "", "span_id": ""}
+
 
 class JsonFormatter(logging.Formatter):
     """
     Emits log records as single-line JSON.
     Compatible with CloudWatch Logs Insights — every field is queryable.
+    Includes OTel trace_id and span_id so logs are linkable to
+    CloudWatch Application Signals / X-Ray traces.
     Extra fields passed via `extra=` kwargs are merged into the JSON object.
     """
 
@@ -29,11 +57,15 @@ class JsonFormatter(logging.Formatter):
     })
 
     def format(self, record: logging.LogRecord) -> str:
+        otel_ctx = _get_otel_trace_context()
         log_obj = {
             "timestamp": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
             "level": record.levelname,
             "logger": record.name,
             "correlation_id": correlation_id_var.get("-"),
+            # OTel trace context — links this log line to Application Signals trace
+            "trace_id": otel_ctx["trace_id"],
+            "span_id": otel_ctx["span_id"],
             "message": record.getMessage(),
         }
         if record.exc_info:
@@ -63,15 +95,28 @@ def configure_logging(level: str = "INFO") -> None:
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """
-    - Reads x-request-id from incoming request (set by API Gateway / ALB).
-    - Generates a new UUID if header is absent.
-    - Stores it in correlation_id_var so ALL downstream log lines include it.
-    - Logs request started + request completed with method, path, status, duration.
-    - Echoes x-request-id back in the response header.
+    Correlation-ID middleware — runs on every request.
+
+    Priority order for correlation ID resolution:
+      1. x-correlation-id  (explicit client / upstream header)
+      2. x-amzn-trace-id   (injected by API Gateway on every request — always present)
+      3. x-request-id      (legacy / ALB-injected)
+      4. generated uuid4   (fallback for direct calls bypassing API Gateway)
+
+    The resolved ID is:
+      - Stored in `correlation_id_var` (ContextVar) for the request lifetime
+      - Included in every JSON log line via JsonFormatter
+      - Echoed back in the x-request-id response header
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        correlation_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+        # Resolve correlation ID — prefer API Gateway injected header
+        correlation_id = (
+                request.headers.get(_CORRELATION_HEADER)
+                or request.headers.get(_AMZN_TRACE_HEADER)  # API Gateway always sets this
+                or request.headers.get(CORRELATION_ID_HEADER)
+                or str(uuid.uuid4())
+        )
         token = correlation_id_var.set(correlation_id)
         start = time.perf_counter()
 
@@ -99,6 +144,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             },
         )
 
-        response.headers["x-request-id"] = correlation_id
+        # Echo correlation ID back to caller so they can log/trace it
+        response.headers[CORRELATION_ID_HEADER] = correlation_id
+        response.headers["x-correlation-id"] = correlation_id
         correlation_id_var.reset(token)
         return response
