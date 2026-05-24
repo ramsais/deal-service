@@ -13,10 +13,13 @@ class Company(BaseModel):
     name: str
     industry: Optional[str] = None
     website: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    address: Optional[str] = None
+    location: Optional[str] = None  # Added: matches company-service response
+    # phone: Optional[str] = None
+    # email: Optional[str] = None
+    # address: Optional[str] = None
     is_active: Optional[bool] = None
+    created_at: Optional[datetime] = None  # Added: matches company-service response
+    updated_at: Optional[datetime] = None  # Added: matches company-service response
 
 
 class Deal(BaseModel):
