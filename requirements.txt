@@ -14,5 +14,6 @@ opentelemetry-instrumentation
 opentelemetry-exporter-otlp-proto-http
 opentelemetry-instrumentation-fastapi
 opentelemetry-instrumentation-httpx
+opentelemetry-instrumentation-requests
 opentelemetry-propagator-aws-xray
 opentelemetry-sdk-extension-aws

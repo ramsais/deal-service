@@ -23,7 +23,7 @@ from opentelemetry.propagators.aws import AwsXRayPropagator
 from opentelemetry.propagators.composite import CompositePropagator
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-# from opentelemetry.instrumentation.requests import RequestsInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
 
 try:
     from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor  # optional
@@ -81,7 +81,7 @@ GlobalExceptionHandlers.register(app)
 app.include_router(deal_router)
 # Instrument FastAPI and outbound HTTP clients
 FastAPIInstrumentor.instrument_app(app, tracer_provider=trace.get_tracer_provider())
-# HTTPXClientInstrumentor().instrument()
+RequestsInstrumentor().instrument()
 if HTTPXClientInstrumentor:
     try:
         HTTPXClientInstrumentor().instrument()
