@@ -7,10 +7,9 @@ WORKDIR /app
 
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
-RUN pip install --no-cache-dir setuptools>=68.0.0 wheel>=0.38.0
-
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
