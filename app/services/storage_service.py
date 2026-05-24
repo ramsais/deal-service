@@ -1,7 +1,7 @@
 import sys
 
 import anyio.to_thread
-from app.exceptions import StorageException
+from app.exceptions.custom import StorageException
 
 from app.services.config import settings
 

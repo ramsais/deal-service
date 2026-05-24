@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from .custom import AppException
+from app.exceptions.custom import AppException
 
 logger = logging.getLogger("deal_service")
 

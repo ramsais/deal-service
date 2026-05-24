@@ -8,7 +8,7 @@ configure_logging(level=settings.LOG_LEVEL)
 import logging
 import os
 from fastapi import FastAPI
-from app.exceptions import GlobalExceptionHandlers
+from app.exceptions.handlers import GlobalExceptionHandlers
 from app.routers.deal_router import router as deal_router
 # ---------------------------------------------------------------------------
 # OpenTelemetry setup (AWS X-Ray compatible)

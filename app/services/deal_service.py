@@ -2,7 +2,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from app.exceptions import ResourceNotFoundException
+from app.exceptions.custom import ResourceNotFoundException
 
 from app.logging_config import correlation_id_var
 from app.schemas.deal import Deal, DealCreate, DealUpdate

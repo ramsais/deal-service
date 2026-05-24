@@ -4,7 +4,7 @@ import logging
 
 from fastapi import Request
 
-from app.exceptions import AppException
+from app.exceptions.custom import AppException
 from app.services.config import settings
 
 logger = logging.getLogger("deal_service.auth")
