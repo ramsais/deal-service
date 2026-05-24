@@ -1,8 +1,11 @@
-import json
 import base64
+import json
 import logging
-from fastapi import Depends, Request
+
+from fastapi import Request
+
 from app.exceptions import AppException
+from app.services.config import settings
 
 logger = logging.getLogger("deal_service.auth")
 
@@ -139,6 +142,17 @@ def _get_role(claims: dict) -> str:
 
 def require_admin(request: Request) -> str:
     """Dependency — allows only users in the 'WRITE_USER' group."""
+    if settings.LOCAL_DEV:
+        logger.info(
+            "auth bypassed (LOCAL_DEV=True)",
+            extra={
+                "required_role": "WRITE_USER",
+                "path": request.url.path,
+                "method": request.method,
+            },
+        )
+        return "WRITE_USER"
+
     claims = _extract_claims(request)
     role = _get_role(claims)
     if role != "WRITE_USER":
@@ -158,6 +172,17 @@ def require_admin(request: Request) -> str:
 
 def require_user(request: Request) -> str:
     """Dependency — allows users in the 'READ_USER' OR 'WRITE_USER' group."""
+    if settings.LOCAL_DEV:
+        logger.info(
+            "auth bypassed (LOCAL_DEV=True)",
+            extra={
+                "required_role": "READ_USER|WRITE_USER",
+                "path": request.url.path,
+                "method": request.method,
+            },
+        )
+        return "ok"
+
     claims = _extract_claims(request)
     role = _get_role(claims)
     logger.info(

@@ -1,15 +1,16 @@
 from fastapi import APIRouter, Depends, status
+
+from app.auth import require_admin, require_user
 from app.schemas.deal import Deal, DealCreate, DealUpdate
 from app.services import deal_service
-from app.auth import require_admin, require_user
+from app.services.config import settings
 
 router = APIRouter(prefix="/deals", tags=["deals"])
 
 
 @router.get("/health", tags=["health"])
 async def health_check() -> dict:
-    """Health endpoint for ECS/ALB — no auth required."""
-    return {"status": "ok", "service": "deal-service", "version": "1.0.0"}
+    return {"status": "ok", "service": settings.SERVICE_NAME, "version": settings.SERVICE_VERSION}
 
 
 @router.get("", response_model=list[Deal], dependencies=[Depends(require_user)])

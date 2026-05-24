@@ -3,11 +3,15 @@ import uuid
 from datetime import datetime, timezone
 
 from app.exceptions import ResourceNotFoundException
+
 from app.logging_config import correlation_id_var
 from app.schemas.deal import Deal, DealCreate, DealUpdate
-from app.services import company_service, storage_service
+from app.services import company_service
+from app.services.storage_service import DealStorage
 
 logger = logging.getLogger("deal_service.service")
+
+_storage = DealStorage()
 
 
 def _cid() -> str:
@@ -21,7 +25,7 @@ async def get_all_deals(company_id: str | None = None) -> list[Deal]:
         extra={"company_id_filter": company_id, "correlation_id": correlation_id},
     )
 
-    raw = await storage_service.read_deals()
+    raw = await _storage.list_deals()
     # Only return active deals
     deals = [Deal.model_validate(d) for d in raw if d.get("is_active", True)]
 
@@ -57,7 +61,7 @@ async def get_deal_by_id(deal_id: str) -> Deal:
         extra={"deal_id": deal_id, "correlation_id": correlation_id},
     )
 
-    raw = await storage_service.read_deals()
+    raw = await _storage.list_deals()
     for d in raw:
         if d["id"] == deal_id and d.get("is_active", True):
             deal = Deal.model_validate(d)
@@ -98,7 +102,6 @@ async def create_deal(payload: DealCreate) -> Deal:
         },
     )
 
-    raw = await storage_service.read_deals()
     now = datetime.now(timezone.utc)
     deal = Deal(
         id=str(uuid.uuid4()),
@@ -110,8 +113,7 @@ async def create_deal(payload: DealCreate) -> Deal:
         created_at=now,
         updated_at=now,
     )
-    raw.append(deal.model_dump(mode="json", exclude={"company"}))
-    await storage_service.write_deals(raw)
+    await _storage.create_deal(deal.model_dump(mode="json", exclude={"company"}))
 
     logger.info(
         "deal created",
@@ -139,41 +141,41 @@ async def update_deal(deal_id: str, payload: DealUpdate) -> Deal:
         extra={"deal_id": deal_id, "patch": payload.model_dump(exclude_unset=True), "correlation_id": correlation_id},
     )
 
-    raw = await storage_service.read_deals()
-    for i, d in enumerate(raw):
-        if d["id"] == deal_id and d.get("is_active", True):
-            existing = Deal.model_validate(d)
-            updated_data = existing.model_dump(exclude={"company"})
-            patch = payload.model_dump(exclude_unset=True)
-            updated_data.update(patch)
-            updated_data["updated_at"] = datetime.now(timezone.utc)
-            updated = Deal(**updated_data)
-            raw[i] = updated.model_dump(mode="json", exclude={"company"})
-            await storage_service.write_deals(raw)
+    existing = await _storage.get_deal(deal_id)
+    if existing is None or not existing.get("is_active", True):
+        logger.warning(
+            "deal not found for update",
+            extra={"deal_id": deal_id, "correlation_id": correlation_id},
+        )
+        raise ResourceNotFoundException(message=f"Deal with id '{deal_id}' not found")
 
-            logger.info(
-                "deal updated",
-                extra={"deal_id": deal_id, "patch": patch, "correlation_id": correlation_id},
-            )
+    existing_model = Deal.model_validate(existing)
+    updated_data = existing_model.model_dump(exclude={"company"})
+    patch = payload.model_dump(exclude_unset=True)
+    updated_data.update(patch)
+    updated_data["updated_at"] = datetime.now(timezone.utc)
+    updated_dict = await _storage.update_deal(deal_id, updated_data)
 
-            # Enrich with company details
-            updated.company = await company_service.get_company(updated.company_id)
-            logger.info(
-                "updated deal enriched with company",
-                extra={
-                    "deal_id": deal_id,
-                    "company_id": updated.company_id,
-                    "company_found": updated.company is not None,
-                    "correlation_id": correlation_id,
-                },
-            )
-            return updated
+    updated = Deal.model_validate(updated_dict) if updated_dict else None
+    if not updated:
+        logger.warning(
+            "deal not found during update write",
+            extra={"deal_id": deal_id, "correlation_id": correlation_id},
+        )
+        raise ResourceNotFoundException(message=f"Deal with id '{deal_id}' not found")
 
-    logger.warning(
-        "deal not found for update",
-        extra={"deal_id": deal_id, "correlation_id": correlation_id},
+    # Enrich with company details
+    updated.company = await company_service.get_company(updated.company_id)
+    logger.info(
+        "updated deal enriched with company",
+        extra={
+            "deal_id": deal_id,
+            "company_id": updated.company_id,
+            "company_found": updated.company is not None,
+            "correlation_id": correlation_id,
+        },
     )
-    raise ResourceNotFoundException(message=f"Deal with id '{deal_id}' not found")
+    return updated
 
 
 async def delete_deal(deal_id: str) -> None:
@@ -184,17 +186,13 @@ async def delete_deal(deal_id: str) -> None:
         extra={"deal_id": deal_id, "correlation_id": correlation_id},
     )
 
-    raw = await storage_service.read_deals()
-    for i, d in enumerate(raw):
-        if d["id"] == deal_id and d.get("is_active", True):
-            raw[i]["is_active"] = False
-            raw[i]["updated_at"] = datetime.now(timezone.utc).isoformat()
-            await storage_service.write_deals(raw)
-            logger.info(
-                "deal soft-deleted",
-                extra={"deal_id": deal_id, "correlation_id": correlation_id},
-            )
-            return
+    deleted = await _storage.delete_deal(deal_id)
+    if deleted:
+        logger.info(
+            "deal soft-deleted",
+            extra={"deal_id": deal_id, "correlation_id": correlation_id},
+        )
+        return
 
     logger.warning(
         "deal not found for deletion",
