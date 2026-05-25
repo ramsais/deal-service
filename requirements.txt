@@ -18,5 +18,3 @@ opentelemetry-instrumentation-fastapi
 opentelemetry-instrumentation-httpx
 opentelemetry-instrumentation-requests
 opentelemetry-propagator-aws-xray
-opentelemetry-sdk-extension-aws
-opentelemetry-exporter-otlp-proto-grpc
