@@ -12,9 +12,11 @@ setuptools>=65.0.0
 
 opentelemetry-api
 opentelemetry-sdk
-opentelemetry-instrumentation
 opentelemetry-exporter-otlp-proto-http
+
+opentelemetry-instrumentation
 opentelemetry-instrumentation-fastapi
-opentelemetry-instrumentation-httpx
 opentelemetry-instrumentation-requests
+opentelemetry-instrumentation-httpx
+
 opentelemetry-propagator-aws-xray
